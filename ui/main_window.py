@@ -207,6 +207,7 @@ class MainWindow(QMainWindow):
             if entry["type"] == "image" and os.path.exists(entry["data"]):
                 os.remove(entry["data"])
 
+        self.filtered_history = None
         self.update_ui()
 
     def clear_all(self):
