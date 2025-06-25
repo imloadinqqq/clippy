@@ -10,7 +10,7 @@ from setuptools import setup
 APP = ['main.py']
 DATA_FILES = ['--iconfile']
 OPTIONS = {
-    'iconfile': '/Users/alexdiaz/Desktop/Development/Projects/clippy/clippy.icns'}
+    'iconfile': './clippy.icns'}
 
 setup(
     app=APP,
