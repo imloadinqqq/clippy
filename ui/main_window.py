@@ -42,6 +42,9 @@ class MainWindow(QMainWindow):
         self.history = []
         self.filtered_history = None
 
+        self.last_text = ""
+        self.last_image_hash = ""
+
         # widgets
         self.input = QLineEdit()
         self.input.setPlaceholderText("Search")
@@ -73,7 +76,6 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(container)
 
         # clipboard timer
-        self.last_text = ""
         self.timer = QTimer()
         self.timer.timeout.connect(self.check_clipboard)
         self.timer.start(1000)
@@ -97,10 +99,13 @@ class MainWindow(QMainWindow):
             image = self.clipboard.image()
             if not image.isNull():
                 image_hash = self.hash_qimage(image)
-                filename = f"{image_hash}.png"  # filename using hash, unique
+                if image_hash == self.last_image_hash:
+                    return
+                self.last_image_hash = image_hash
+
+                filename = f"{image_hash}.png"
                 filepath = os.path.join(IMAGE_DIR, filename)
 
-                # Only save if not already in DB
                 c.execute(
                     "SELECT COUNT(*) FROM history WHERE type = 'image' AND data = ?", (filepath,))
                 if c.fetchone()[0] == 0:
@@ -131,7 +136,6 @@ class MainWindow(QMainWindow):
         rows = c.fetchall()
         return [{"type": row[0], "data": row[1]} for row in rows]
 
-    # avoid having same image being added to list multiple times, using its hash
     def hash_qimage(self, image: QImage) -> str:
         buffer = image.bits().asstring(image.sizeInBytes())
         return hashlib.sha256(buffer).hexdigest()
@@ -152,13 +156,9 @@ class MainWindow(QMainWindow):
                     list_item.setIcon(QIcon())
             elif hist_item["type"] == "image":
                 expected_label = f"Image #{i+1}"
-                if list_item.text() != expected_label:
-                    list_item.setText(expected_label)
-                if list_item.icon().isNull():
-                    pixmap = QPixmap()
-                    pixmap.load(hist_item["data"])
-                    pixmap = pixmap.scaled(64, 64)
-                    list_item.setIcon(QIcon(pixmap))
+                list_item.setText(expected_label)
+                pixmap = QPixmap(hist_item["data"]).scaled(64, 64)
+                list_item.setIcon(QIcon(pixmap))
 
         # Add new items
         for i in range(current_count, history_count):
@@ -198,12 +198,10 @@ class MainWindow(QMainWindow):
             row = self.list.row(item)
             entry = self.history[row]
 
-            # Remove from DB
             c.execute("DELETE FROM history WHERE type = ? AND data = ?",
                       (entry["type"], entry["data"]))
             conn.commit()
 
-            # Remove image file if needed
             if entry["type"] == "image" and os.path.exists(entry["data"]):
                 os.remove(entry["data"])
 
@@ -211,12 +209,10 @@ class MainWindow(QMainWindow):
         self.update_ui()
 
     def clear_all(self):
-        # Remove image files
         for entry in self.history:
             if entry["type"] == "image" and os.path.exists(entry["data"]):
                 os.remove(entry["data"])
 
-        # Clear DB
         c.execute("DELETE FROM history")
         conn.commit()
 
